@@ -1,2 +1,2 @@
 # AI-Learning
-This repository contains all of my learning from the AI course in CAASITECH
+This repository contains my learnings from the AI course in CAASITECH Academy.
