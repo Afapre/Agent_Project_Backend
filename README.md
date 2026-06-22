@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Langchain Agent with RAG
 
 This project implements a Langchain agent with Retrieval-Augmented Generation (RAG) for procurement assistance, featuring a Streamlit web interface.
@@ -48,3 +49,7 @@ After running the script, you'll get an ngrok URL like `https://xxxx-xx-xxx-xxx-
 - Python 3.8+
 - All dependencies listed in `requirements.txt`
 - Valid API keys for the services mentioned above
+=======
+# AI-Learning
+This repository contains my learnings from the AI course in CAASITECH Academy.
+>>>>>>> 97431f2b4caa99c5bced6ba0753f7d56083ac271
