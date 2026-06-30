@@ -34,8 +34,9 @@ async def chat_with_clara(payload: ChatRequest):
     
     try:
         processor = PDFProcessor()
-        retriever = processor.retrieve_from_db()
-        tools = get_tools(retriever, tavily_key)
+        #retriever = processor.retrieve_from_db()
+        collection=processor.collection
+        tools = get_tools(collection, tavily_key)
         agent = get_clara_agent(tools, google_key)
 
         # If input fails the security check, halt and yield an immediate refusal string

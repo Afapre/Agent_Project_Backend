@@ -5,9 +5,16 @@ langchain-chroma
 langchain-huggingface
 sentence-transformers
 transformers
+torch
+numpy
+soundfile
+kokoro
 pymupdf
 tavily-python
-streamlit
 python-dotenv
 pyngrok
 setuptools
+fastapi
+openai
+chromadb
+uvicorn
