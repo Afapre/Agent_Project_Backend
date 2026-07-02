@@ -3,10 +3,11 @@
 PYTHON ?= python
 PIP ?= $(PYTHON) -m pip
 UVICORN ?= uvicorn
+GUNICORN ?= gunicorn
 REQS ?= requirements.txt
 ENV_FILE ?= .env
 
-.PHONY: help install run dev lint clean env-check
+.PHONY: help install run dev prod lint clean env-check
 
 help:
 	@echo "Usage: make [target]"
@@ -30,6 +31,9 @@ run: env-check
 
 dev: env-check
 	$(UVICORN) app:app --host 0.0.0.0 --port 1234 --reload
+
+prod: env-check
+	$(GUNICORN) -w 1 -k uvicorn.workers.UvicornWorker app:app --bind 0.0.0.0:$(PORT)
 
 lint:
 	@command -v black >/dev/null 2>&1 && black . || echo "black is not installed"

@@ -18,3 +18,4 @@ fastapi
 openai
 chromadb
 uvicorn
+gunicorn

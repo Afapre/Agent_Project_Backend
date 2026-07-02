@@ -11,14 +11,12 @@ class MyEmbeddingFunction(EmbeddingFunction):
         self.model = model
 
     def __call__(self, input: Documents) -> Embeddings:
-        # embed the documents somehow
-        #embeddings = self.model.encode(input, prompt_name="document", normalize_embeddings=True)
-       
-        # MiniLM does not need a 'prompt_name'
-        embeddings = self.model.encode(input, normalize_embeddings=True)
-
-        #return embeddings
-        return embeddings.tolist() 
+        embeddings = self.model.encode(
+            input,
+            batch_size=8,
+            normalize_embeddings=True,
+        )
+        return embeddings.tolist()
     
 
     @staticmethod
