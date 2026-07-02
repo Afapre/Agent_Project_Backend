@@ -26,6 +26,6 @@ async def health_check():
 app.include_router(general_router)
 
 #Running the server
-if __name__=="__main__":
-    uvicorn.run(app='app:app',host='0.0.0.0',port=1234,reload=True)
+# if __name__=="__main__":
+#     uvicorn.run(app='app:app',host='0.0.0.0',port=1234,reload=True)
 
