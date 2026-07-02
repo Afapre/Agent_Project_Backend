@@ -1,11 +1,13 @@
+print("--- STARTING APP ---")
 from fastapi import FastAPI
 import uvicorn
-from src.api.router import general_router
+
 from fastapi.middleware.cors import CORSMiddleware
 
 
 #Instantiating fastapi class
 app=FastAPI(title='CLARA: AI Purchasing Assistant',description='Negotiates prices with suppliers')
+print("--- FASTAPI INSTANTIATED ---")
 
 # Allow local HTML file setup to query API
 app.add_middleware(
@@ -16,14 +18,19 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 #fxn to check health of the server
 @app.get(path='/health')
 async def health_check():
     """checks the health of the server"""
     return {'status':'Healthy'}
 
+print("--- IMPORTING ROUTER ---")
+from src.api.router import general_router
+print("--- ROUTER IMPORTED ---")
 #adding general router to app
 app.include_router(general_router)
+print("--- ROUTER INCLUDED ---")
 
 #Running the server
 # if __name__=="__main__":
