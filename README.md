@@ -43,6 +43,11 @@ The service exposes REST APIs for:
    make run
    ```
 
+   or to run in production with Gunicorn:
+   ```bash
+   make prod
+   ```
+
 ## Makefile Targets
 
 - `make install` — install Python dependencies
@@ -108,6 +113,20 @@ Response example:
 - `src/data_logic/doc_processor.py` — PDF processing and retrieval setup
 - `src/tools/tools_definition.py` — tool definitions for LangChain agent
 - `src/addons/text_to_speech.py` — optional text-to-speech support
+
+## Render deployment
+
+Use these settings in Render:
+
+- Build command: `pip install -r requirements.txt`
+- Start command: `gunicorn -w 1 -k uvicorn.workers.UvicornWorker app:app --bind 0.0.0.0:$PORT`
+- Environment variables:
+  - `GOOGLE_API_KEY`
+  - `TAVILY_API_KEY`
+  - `ENABLE_TTS=false`
+  - `CHROMA_API_KEY` (if using Chroma Cloud)
+  - `CHROMA_TENANT` (if using Chroma Cloud)
+  - `CHROMA_DATABASE` (if using Chroma Cloud)
 
 ## Notes
 
