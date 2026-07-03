@@ -9,14 +9,12 @@ from src.core.agent_logic import get_clara_agent
 from src.tools.tools_definition import get_tools
 from src.data_logic.doc_processor import PDFProcessor
 from src.schema.chat_models import ChatRequest,ChatResponse
-from src.services.guard_service import GuardService
 from src.exceptions.harmful_exceptions import HarmfulContentError
 from src.addons.text_to_speech import text_to_speech
 load_dotenv()
 
 
 router = APIRouter()
-guard_service=GuardService()
 
 @router.post(path='/message', response_model=ChatResponse)
 async def chat_with_clara(payload: ChatRequest):
@@ -39,11 +37,8 @@ async def chat_with_clara(payload: ChatRequest):
         tools = get_tools(collection, tavily_key)
         agent = get_clara_agent(tools, google_key)
 
-        # If input fails the security check, halt and yield an immediate refusal string
+        # Skip the prompt-guard model entirely for lighter startup and lower memory use.
         user_prompt = payload.prompt.strip()
-        is_safe=guard_service.guard(user_prompt)
-        if is_safe != True:
-            raise HarmfulContentError()
 
         # --- FIX: UNCOMMENT & FEED CHAT HISTORY TO LANGCHAIN ---
         # Convert past conversational payloads into LangChain structures
