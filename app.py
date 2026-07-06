@@ -3,6 +3,9 @@ from fastapi import FastAPI
 import uvicorn
 from src.api.router import general_router
 from fastapi.middleware.cors import CORSMiddleware
+from dotenv import load_dotenv
+import os
+load_dotenv()
 
 
 #Instantiating fastapi class
@@ -30,5 +33,7 @@ app.include_router(general_router)
 
 #Running the server
 if __name__=="__main__":
-    uvicorn.run(app='app:app',host='0.0.0.0',port=1234,reload=True)
+    host=os.getenv('HOST', 'localhost')
+    port=int(os.getenv('PORT', '8000'))
+    uvicorn.run(app='app:app', host=host, port=port, reload=True)
 
