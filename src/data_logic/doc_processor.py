@@ -76,12 +76,15 @@ class PDFProcessor:
         return text
 
     def _ensure_loaded(self):
-        if self.model is None:
+        if self.embedding is None:
+            self.embedding = MyEmbeddingFunction(model=None)
+            
+        if self.model is None and not getattr(self.embedding, "_use_gemini", False):
             self.model = SentenceTransformer(
                 "sentence-transformers/all-MiniLM-L6-v2",
                 device="cpu",
             )
-            self.embedding = MyEmbeddingFunction(self.model)
+            self.embedding.model = self.model
 
         if self._collection is None:
             provider = "gemini" if getattr(self.embedding, "_use_gemini", False) else "local"
