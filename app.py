@@ -33,7 +33,12 @@ app.include_router(general_router)
 
 #Running the server
 if __name__=="__main__":
-    host=os.getenv('HOST', 'localhost')
-    port=int(os.getenv('PORT', '8000'))
-    uvicorn.run(app='app:app', host=host, port=port, reload=True)
+    # host=os.getenv('HOST', 'localhost')
+    # port=int(os.getenv('PORT', '8000'))
+    # uvicorn.run(app='app:app', host=host, port=port, reload=True)
+
+    # Render provides the PORT variable; default to 8000 for local testing
+    port = int(os.environ.get("PORT", 8000))
+    # Must bind to 0.0.0.0 to be accessible from outside the container
+    uvicorn.run("app:app", host="0.0.0.0", port=port, reload=False)
 
