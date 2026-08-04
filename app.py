@@ -5,11 +5,13 @@ from src.api.router import general_router
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 import os
+from fastapi.staticfiles import StaticFiles
 load_dotenv()
 
 
 #Instantiating fastapi class
 app=FastAPI(title='CLARA: AI Purchasing Assistant',description='Negotiates prices with suppliers')
+
 
 # Allow local HTML file setup to query API
 app.add_middleware(
@@ -41,4 +43,5 @@ if __name__=="__main__":
     port = int(os.environ.get("PORT", 8000))
     # Must bind to 0.0.0.0 to be accessible from outside the container
     uvicorn.run("app:app", host="0.0.0.0", port=port, reload=False)
+
 

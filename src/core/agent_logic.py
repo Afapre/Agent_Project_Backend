@@ -2,7 +2,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.agents import create_agent
 
 
-with open('src/utils/system_prompt.md', 'r') as f:
+with open('src/utils/system_prompt_v2.md', 'r') as f:
     SYSTEM_PROMPT = f.read()
 
 def get_clara_agent(tools, api_key):
