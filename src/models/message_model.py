@@ -1,9 +1,13 @@
-from sqlalchemy.orm import Mapped,mapped_column,relationship
-from sqlalchemy import String,DateTime,Boolean,JSON,ForeignKey,func
+from __future__ import annotations
 from datetime import datetime
-from typing import Any,Dict
+from typing import TYPE_CHECKING, Any, Dict
 from uuid import UUID
-from src.models.base import Base,UUIDPrimaryKey
+from sqlalchemy import Boolean, DateTime, ForeignKey, JSON, String, func
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+from src.models.base import Base, UUIDPrimaryKey
+
+if TYPE_CHECKING:
+    from src.models.chat_model import Chat
 
 
 class Message(UUIDPrimaryKey, Base):
@@ -16,5 +20,4 @@ class Message(UUIDPrimaryKey, Base):
 
     chat_id: Mapped[UUID] = mapped_column(ForeignKey("chats.id"), nullable=False)
 
-    # Bidirectional relationship
     chat: Mapped["Chat"] = relationship("Chat", back_populates="messages")
