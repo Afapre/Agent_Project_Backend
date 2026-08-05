@@ -124,13 +124,25 @@ def create_user(first_name: str, last_name: str, email: str, password: str, date
 
 
 
+# def login_user(email: str, password: str) -> dict:
+#     with SessionLocal() as session:
+#         user = session.query(User).filter(User.email == email).first()
+#         if not user or user.password != password:
+#             raise ValueError("Invalid email or password")
+#         return _serialize_user(user)
 def login_user(email: str, password: str) -> dict:
     with SessionLocal() as session:
         user = session.query(User).filter(User.email == email).first()
-        if not user or user.password != password:
+        if not user:
+            #print(f"LOGIN DEBUG: User not found for email: {email}")
             raise ValueError("Invalid email or password")
+        
+        #print(f"LOGIN DEBUG: DB Password: [{user.password}] | Input Password: [{password}]")
+        if user.password != password:
+            #print("LOGIN DEBUG: Password mismatch!")
+            raise ValueError("Invalid email or password")
+            
         return _serialize_user(user)
-
 
 def get_user(user_id: str) -> dict | None:
     with SessionLocal() as session:
@@ -214,3 +226,14 @@ def delete_user(user_id: str) -> dict:
         session.delete(user)
         session.commit()
         return {"message": f"User {user_id} deleted", "user_id": user_id}
+    
+def update_chat_title(chat_id: str, title: str) -> dict | None:
+    with SessionLocal() as session:
+        chat = session.get(Chat, uuid.UUID(chat_id))
+        if not chat:
+            return None
+        chat.chat_name = title
+        chat.modified_at = _now()
+        session.commit()
+        session.refresh(chat)
+        return _serialize_chat(chat)

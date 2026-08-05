@@ -19,6 +19,7 @@ from src.data_logic.postgres import (
     list_messages as db_list_messages,
     list_user_chats as db_list_user_chats,
     update_message_feedback as db_update_message_feedback,
+    update_chat_title as db_update_chat_title,
 )
 from src.exceptions.harmful_exceptions import HarmfulContentError
 from src.schema.chat_models import (
@@ -32,6 +33,7 @@ from src.schema.chat_models import (
     UserCreate,
     UserLoginRequest,
     UserResponse,
+    ChatUpdate,
 )
 from src.tools.tools_definition import get_tools
 
@@ -139,10 +141,6 @@ async def _run_clara_agent(prompt: str, history: list[dict] | None = None, chat_
 
 @router.post(path="/message", response_model=ChatResponse)
 async def chat_with_clara(payload: ChatRequest):
-    """
-    Submits a message prompt along with conversational history to CLARA
-    and stores the exchange in PostgreSQL-backed chat state.
-    """
     try:
         user_id = payload.user_id or "anonymous"
         if payload.user_id:
@@ -172,6 +170,8 @@ async def chat_with_clara(payload: ChatRequest):
 
     except HarmfulContentError as e:
         raise HTTPException(status_code=403, detail=f"Harmful Content Execution Failure: {str(e)}")
+    except HTTPException:
+        raise
     except Exception as e:
         print(e)
         raise HTTPException(status_code=500, detail=f"Agent Execution Failure: {str(e)}")
@@ -189,9 +189,10 @@ async def create_user(payload: UserCreate):
                 date_of_birth=payload.date_of_birth,
             )
     except ValueError as e:
-        if str(e)=="Email Already Exists":
-            raise HTTPException(status_code=409, detail='Email already registered to another account.')
-    
+        error_msg = str(e)
+        if "Email Already Exists" in error_msg:
+            raise HTTPException(status_code=409, detail="Email already registered to another account.")
+        raise HTTPException(status_code=400, detail=error_msg)
 
 
 @router.post("/users/login", response_model=UserResponse)
@@ -254,3 +255,11 @@ async def update_message_feedback(message_id: str, payload: MessageFeedbackUpdat
 async def delete_user(user_id: str):
     _get_user(user_id)
     return db_delete_user(user_id)
+
+@router.patch("/chats/{chat_id}", response_model=ChatSummary)
+async def update_chat_title(chat_id: str, payload: ChatUpdate):
+    _get_chat(chat_id)
+    updated_chat = db_update_chat_title(chat_id, payload.title)
+    if not updated_chat:
+        raise HTTPException(status_code=404, detail="Chat not found")
+    return updated_chat

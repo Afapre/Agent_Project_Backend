@@ -3,13 +3,19 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 
+# class UserCreate(BaseModel):
+#     first_name: str | None = None
+#     last_name: str | None = None
+#     name: str | None = None
+#     email: str = Field(..., min_length=3)
+#     password: str = Field(..., min_length=8, description="Password must be at least 8 characters long")
+#     date_of_birth: str | None = None
 class UserCreate(BaseModel):
-    first_name: str | None = None
-    last_name: str | None = None
-    name: str | None = None
-    email: str = Field(..., min_length=3)
-    password: str | None = None
-    date_of_birth: str | None = None
+    first_name: str = Field(..., min_length=2, description="First name is required")
+    last_name: str = Field(..., min_length=2, description="Last name is required")
+    email: str = Field(..., min_length=3, description="Email is required")
+    password: str = Field(..., min_length=8, description="Password must be at least 8 characters long")
+    date_of_birth: str = Field(..., description="Date of birth is required")
 
 
 class UserLoginRequest(BaseModel):
@@ -69,3 +75,6 @@ class MessageResponse(BaseModel):
 
 class MessageFeedbackUpdate(BaseModel):
     is_liked: bool | None = None
+
+class ChatUpdate(BaseModel):
+    title: str = Field(..., min_length=1)
