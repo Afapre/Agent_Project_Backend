@@ -11,6 +11,7 @@ from PIL import Image
 import io
 import boto3
 from fastapi.staticfiles import StaticFiles
+from chromadb.errors import ChromaError
 
 
 
@@ -18,13 +19,22 @@ load_dotenv(find_dotenv())
 
 ENV = os.getenv("ENV", "development")
 BUCKET_NAME = os.getenv("AWS_BUCKET_NAME")
+API_KEY=os.getenv("CHROMA_API_KEY")
+TENANT=os.getenv("CHROMA_TENANT")
+DATABASE=os.getenv("CHROMA_DATABASE")
 
+try:
+    client = chromadb.CloudClient(
+        api_key=API_KEY,
+        tenant=TENANT,
+        database=DATABASE,
+    )
+    client.heartbeat()
+    print("Successful connection to Chroma Cloud.")
 
-client = chromadb.CloudClient(
-    api_key=os.getenv("CHROMA_API_KEY"),
-    tenant=os.getenv("CHROMA_TENANT"),
-    database=os.getenv("CHROMA_DATABASE"),
-)
+except Exception as e:
+    print(f"Warning: Could not connect to Chroma Cloud. Error: {e}")
+
 
 
 class PDFProcessor:
