@@ -22,4 +22,7 @@ gunicorn
 llama-cloud
 Pillow
 boto3
+pypdf
+python-docx
+pytesseract
 pyscopg2

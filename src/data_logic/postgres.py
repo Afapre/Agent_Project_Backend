@@ -1,5 +1,8 @@
 import os
 import uuid
+import base64
+import io
+import pypdf
 from datetime import datetime, timezone
 
 from dotenv import load_dotenv
@@ -41,7 +44,7 @@ SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 
 
 def initialize_database() -> None:
-    Base.metadata.drop_all(bind=engine, checkfirst=True)
+    #Base.metadata.drop_all(bind=engine, checkfirst=True)
     Base.metadata.create_all(bind=engine)
 
 
@@ -90,15 +93,6 @@ def _serialize_message(message: Message) -> dict:
     }
 
 
-# def create_user(name: str, email: str) -> dict:
-#     with SessionLocal() as session:
-#         first_name = name.split(" ", 1)[0]
-#         last_name = name.split(" ", 1)[1] if " " in name else ""
-#         user = User(first_name=first_name, last_name=last_name, email=email, date_of_birth=_now())
-#         session.add(user)
-#         session.commit()
-#         session.refresh(user)
-#         return _serialize_user(user)
 
 def create_user(first_name: str, last_name: str, email: str, password: str, date_of_birth: str | None = None) -> dict:
     with SessionLocal() as session:
@@ -124,12 +118,7 @@ def create_user(first_name: str, last_name: str, email: str, password: str, date
 
 
 
-# def login_user(email: str, password: str) -> dict:
-#     with SessionLocal() as session:
-#         user = session.query(User).filter(User.email == email).first()
-#         if not user or user.password != password:
-#             raise ValueError("Invalid email or password")
-#         return _serialize_user(user)
+
 def login_user(email: str, password: str) -> dict:
     with SessionLocal() as session:
         user = session.query(User).filter(User.email == email).first()
@@ -237,3 +226,4 @@ def update_chat_title(chat_id: str, title: str) -> dict | None:
         session.commit()
         session.refresh(chat)
         return _serialize_chat(chat)
+

@@ -1,3 +1,5 @@
+import os
+
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.agents import create_agent
 
@@ -5,7 +7,15 @@ from langchain.agents import create_agent
 with open('src/utils/system_prompt_v2.md', 'r') as f:
     SYSTEM_PROMPT = f.read()
 
+
+def _ensure_tracing_defaults():
+    tracing_enabled = os.getenv("ENABLE_LANGSMITH_TRACING", "false").strip().lower()
+    if tracing_enabled not in {"1", "true", "yes", "on"}:
+        os.environ["LANGSMITH_TRACING"] = "false"
+        os.environ["LANGCHAIN_TRACING_V2"] = "false"
+
 def get_clara_agent(tools, api_key):
+    _ensure_tracing_defaults()
     model = ChatGoogleGenerativeAI(api_key=api_key, model='gemini-3.1-flash-lite-preview',
      temperature=0.2 # Lower temperature prevents analytical looping
     )

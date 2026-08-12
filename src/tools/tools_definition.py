@@ -1,8 +1,9 @@
 from langchain.tools import tool
 from tavily import TavilyClient
+from src.data_logic.retrieval_scope import query_scope_matches
 
 
-def get_tools(collection, tavily_key):
+def get_tools(collection, tavily_key, user_id=None, chat_id=None, document_ids=None):
     tavily_client = TavilyClient(api_key=tavily_key)
 
     @tool
@@ -10,39 +11,45 @@ def get_tools(collection, tavily_key):
         """Searches the web for information."""
         return tavily_client.search(query)
     
+
     # def retriever_tool(query: str):
     #     """Searches document database and returns top ranked matches with query"""
-    #     # 1. Retrieve initial candidate documents
-    #     #documents = retriever(query=query)
-    #     documents = retriever.invoke(query)
-    #     # Most retrievers return a list of Document objects, so we extract the .page_content
-    #     doc_texts = [doc.page_content for doc in documents]
-        
-    #     # 2. Prepare pairs for the CrossEncoder
-    #     pairs = [(query, text) for text in doc_texts]
-        
-    #     # 3. Get relevance scores
-    #     scores = model.predict(pairs)
-        
-    #     # 4. Pair documents with their scores and sort by score descending
-    #     ranked_docs = sorted(zip(doc_texts, scores), key=lambda x: x[1], reverse=True)
-        
-    #     # 5. Return the documents in their new ranked order
-    #     return [doc for doc, score in ranked_docs][:2]
-    
+
+    #     # 1. Search ChromaDB
+    #     results = collection.query(query_texts=[query], n_results=50)
+    #     doc_texts = results['documents'][0]
+
+    #     if not doc_texts:
+    #         return "No relevant documents found."
+
+    #     # Reranking is disabled to keep memory usage low on free-tier deployments.
+    #     return doc_texts[:3]
 
     def retriever_tool(query: str):
-        """Searches document database and returns top ranked matches with query"""
+        """Searches the current chat context and the user's shared knowledge base."""
 
-        # 1. Search ChromaDB
-        results = collection.query(query_texts=[query], n_results=50)
-        doc_texts = results['documents'][0]
+        matches = query_scope_matches(
+            collection,
+            query,
+            user_id=user_id,
+            chat_id=chat_id,
+            document_ids=document_ids,
+            n_results=5,
+            include_user_knowledge=True,
+        )
 
-        if not doc_texts:
+        if not matches:
             return "No relevant documents found."
 
-        # Reranking is disabled to keep memory usage low on free-tier deployments.
-        return doc_texts[:3]
+        formatted_matches = []
+        for doc, meta in matches:
+            match_str = f"Text: {doc}"
+            if meta and meta.get("image_url"):
+                match_str += f"\nImage Reference URL: {meta['image_url']}"
+                
+            formatted_matches.append(match_str)
+
+        return "\n\n---\n\n".join(formatted_matches[:3])
 
 
     # doc_tool = create_retriever_tool(
