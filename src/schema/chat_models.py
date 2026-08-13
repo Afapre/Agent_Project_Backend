@@ -1,34 +1,8 @@
-from typing import Literal,Optional
+from pydantic import BaseModel
 
-from pydantic import BaseModel, Field
-
-
-# class UserCreate(BaseModel):
-#     first_name: str | None = None
-#     last_name: str | None = None
-#     name: str | None = None
-#     email: str = Field(..., min_length=3)
-#     password: str = Field(..., min_length=8, description="Password must be at least 8 characters long")
-#     date_of_birth: str | None = None
-class UserCreate(BaseModel):
-    first_name: str | None = None
-    last_name: str | None = None
-    name: str | None = None
-    email: str
-    password: str
-    date_of_birth: str | None = None
-
-
-class UserLoginRequest(BaseModel):
-    email: str
-    password: str
-
-
-class UserResponse(BaseModel):
-    id: str
-    name: str
-    email: str
-    created_at: str | None = None
+# Backward-compatible re-exports while the codebase transitions to split schema files.
+from src.schema.message_models import MessageCreate, MessageFeedbackUpdate, MessageResponse
+from src.schema.user_models import UserCreate, UserLoginRequest, UserResponse
 
 
 class ChatRequest(BaseModel):
@@ -75,21 +49,3 @@ class ChatSummary(BaseModel):
     title: str
     created_at: str | None = None
     updated_at: str | None = None
-
-
-class MessageCreate(BaseModel):
-    role: str
-    content: str
-
-
-class MessageFeedbackUpdate(BaseModel):
-    is_liked: bool | None = None
-
-
-class MessageResponse(BaseModel):
-    id: str
-    chat_id: str
-    role: str
-    content: str
-    is_liked: bool | None = None
-    created_at: str | None = None

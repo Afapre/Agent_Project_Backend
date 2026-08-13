@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, UploadFile, File, Form
 from src.data_logic.doc_processor import PDFProcessor
 from src.schema.documents_models import FolderDirectoryRequest
 from src.schema.documents_models import FileRequest
-from src.api.v1.chat import _extract_document_text
+from src.api.v1.chat_common import extract_document_text
 import os
 from typing import List
 import shutil
@@ -65,7 +65,7 @@ async def upload_knowledge_files(
 
     for file in files:
         try:
-            extracted_text = await _extract_document_text(file)
+            extracted_text = await extract_document_text(file)
             if not extracted_text.strip():
                 raise HTTPException(status_code=422, detail="No readable text could be extracted from the uploaded file")
 
