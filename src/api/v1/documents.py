@@ -57,6 +57,7 @@ async def upload_multiple_documents(files: List[UploadFile] = File(...)):
 async def upload_knowledge_files(
     files: List[UploadFile] = File(...),
     user_id: str = Form(...),
+    related_document_id: str | None = Form(default=None),
 ):
     if not files:
         raise HTTPException(status_code=400, detail="No files were uploaded")
@@ -78,6 +79,7 @@ async def upload_knowledge_files(
                 user_id=user_id,
                 chat_id=None,
                 source_type="knowledge",
+                related_document_id=related_document_id or None,
             )
 
             if chunk_count == 0:
@@ -87,6 +89,7 @@ async def upload_knowledge_files(
                 "id": document_id,
                 "filename": file.filename or "uploaded-file",
                 "chunk_count": chunk_count,
+                "related_document_id": related_document_id or None,
             })
         except Exception as e:
             results["errors"].append({"file": file.filename, "error": str(e)})

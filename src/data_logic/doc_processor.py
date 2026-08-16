@@ -186,6 +186,19 @@ class PDFProcessor:
         )
         return [chunk.strip() for chunk in splitter.split_text(text) if chunk and chunk.strip()]
 
+    def get_document_filename(self, document_id: str) -> str | None:
+        """Resolves the filename for a previously indexed document, without a full re-ingestion."""
+        self._ensure_loaded()
+
+        if not document_id:
+            return None
+
+        results = self.collection.get(where={"document_id": document_id}, include=["metadatas"], limit=1)
+        metadatas = results.get("metadatas", []) or []
+        if not metadatas:
+            return None
+        return str((metadatas[0] or {}).get("filename") or "") or None
+
     def index_document_text(
         self,
         text: str,
@@ -195,12 +208,18 @@ class PDFProcessor:
         user_id: str | None = None,
         chat_id: str | None = None,
         source_type: str = "document",
+        related_document_id: str | None = None,
+        version_label: str | None = None,
     ) -> int:
         self._ensure_loaded()
 
         chunks = self._split_text(text)
         if not chunks:
             return 0
+
+        # Amendments are indexed as new chunks linked to the original document_id, so the
+        # original never needs to be deleted or re-ingested.
+        related_filename = self.get_document_filename(related_document_id) if related_document_id else None
 
         ids = [str(uuid.uuid4()) for _ in chunks]
         metadatas: list[dict[str, Any]] = []
@@ -217,6 +236,13 @@ class PDFProcessor:
                 metadata["user_id"] = user_id
             if chat_id:
                 metadata["chat_id"] = chat_id
+            if related_document_id:
+                metadata["related_document_id"] = related_document_id
+                metadata["is_amendment"] = True
+                if related_filename:
+                    metadata["related_document_filename"] = related_filename
+            if version_label:
+                metadata["version_label"] = version_label
             metadatas.append(metadata)
 
         self.collection.add(documents=chunks, ids=ids, metadatas=metadatas)
@@ -255,7 +281,10 @@ class PDFProcessor:
             if fingerprint in seen:
                 continue
             seen.add(fingerprint)
-            formatted_matches.append(f"Source: {filename}\n{document}")
+            header = f"Source: {filename}"
+            if metadata.get("related_document_filename"):
+                header += f" (Amendment to: {metadata['related_document_filename']})"
+            formatted_matches.append(f"{header}\n{document}")
 
         return "\n\n---\n\n".join(formatted_matches)
 
@@ -295,6 +324,10 @@ class PDFProcessor:
                 "source_type": str(metadata.get("source_type") or "document"),
                 "chunk_count": int(metadata.get("chunk_count") or 0),
                 "status": "indexed",
+                "related_document_id": str(metadata.get("related_document_id") or "") or None,
+                "related_document_filename": str(metadata.get("related_document_filename") or "") or None,
+                "version_label": str(metadata.get("version_label") or "") or None,
+                "is_amendment": bool(metadata.get("is_amendment") or False),
             }
 
         return list(documents_by_id.values())
@@ -327,6 +360,10 @@ class PDFProcessor:
                 "source_type": str(metadata.get("source_type") or "knowledge"),
                 "chunk_count": int(metadata.get("chunk_count") or 0),
                 "status": "indexed",
+                "related_document_id": str(metadata.get("related_document_id") or "") or None,
+                "related_document_filename": str(metadata.get("related_document_filename") or "") or None,
+                "version_label": str(metadata.get("version_label") or "") or None,
+                "is_amendment": bool(metadata.get("is_amendment") or False),
             }
 
         return list(documents_by_id.values())

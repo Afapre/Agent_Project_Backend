@@ -12,6 +12,8 @@ from src.data_logic.doc_processor import PDFProcessor
 from src.data_logic.postgres import get_chat as db_get_chat
 from src.data_logic.postgres import get_user as db_get_user
 from src.data_logic.postgres import list_messages as db_list_messages
+from src.data_logic.audit_log import log_event
+from src.data_logic.action_queue import list_pending_actions
 from src.tools.tools_definition import get_tools
 
 load_dotenv()
@@ -248,12 +250,25 @@ async def run_clara_agent(
     context_text: str | None = None,
     user_id: str | None = None,
     document_ids: list[str] | None = None,
-) -> tuple[str, str | None]:
+) -> tuple[str, str | None, list[dict], list[dict]]:
     google_key = os.getenv("GOOGLE_API_KEY")
     tavily_key = os.getenv("TAVILY_API_KEY")
 
     if not google_key:
         raise HTTPException(status_code=500, detail="Missing GOOGLE_API_KEY environment variable.")
+
+    tool_audit_entries: list[dict] = []
+
+    def audit_callback(tool_name: str, args: dict, result, document_refs: list[str] | None = None):
+        entry = log_event(
+            event_type="tool_invocation",
+            user_id=user_id,
+            chat_id=chat_id,
+            tool_name=tool_name,
+            details={"args": args, "result_preview": str(result)[:500]},
+            document_refs=document_refs or [],
+        )
+        tool_audit_entries.append(entry)
 
     processor = PDFProcessor()
     collection = processor.collection
@@ -263,12 +278,20 @@ async def run_clara_agent(
         user_id=user_id,
         chat_id=chat_id,
         document_ids=document_ids,
+        audit_callback=audit_callback,
     )
     agent = get_clara_agent(tools, google_key)
 
     formatted_history = build_formatted_history(history=history, chat_id=chat_id)
     final_prompt = compact_prompt_payload(prompt, context_text)
     formatted_history.append(HumanMessage(content=final_prompt))
+
+    log_event(
+        event_type="agent_turn_start",
+        user_id=user_id,
+        chat_id=chat_id,
+        details={"prompt_preview": prompt[:300]},
+    )
 
     response = agent.invoke({"messages": formatted_history})
 
@@ -280,6 +303,16 @@ async def run_clara_agent(
                 ai_msg = msg
                 break
         raw_content = ai_msg.content if ai_msg else message_list[-1].content
+
+        for msg in message_list:
+            if hasattr(msg, "type") and getattr(msg, "type", "") == "tool":
+                log_event(
+                    event_type="tool_result",
+                    user_id=user_id,
+                    chat_id=chat_id,
+                    tool_name=getattr(msg, "name", "unknown"),
+                    details={"content_preview": str(getattr(msg, "content", ""))[:500]},
+                )
     else:
         raw_content = response.content if hasattr(response, "content") else response
 
@@ -296,5 +329,18 @@ async def run_clara_agent(
     else:
         final_text = str(raw_content).strip()
 
+    pending_actions = list_pending_actions(user_id, chat_id) if user_id else []
+
+    log_event(
+        event_type="agent_turn_complete",
+        user_id=user_id,
+        chat_id=chat_id,
+        details={
+            "response_preview": final_text[:300],
+            "pending_actions_count": len(pending_actions),
+            "tools_invoked": len(tool_audit_entries),
+        },
+    )
+
     audio_base64 = text_to_speech(final_text)
-    return final_text.strip(), audio_base64 if audio_base64 else None
+    return final_text.strip(), audio_base64 if audio_base64 else None, pending_actions, tool_audit_entries

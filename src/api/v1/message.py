@@ -36,7 +36,7 @@ async def chat_with_clara(payload: ChatRequest):
         if retrieved_context.strip():
             combined_context.append(retrieved_context.strip())
 
-        final_text, audio_base64 = await run_clara_agent(
+        final_text, audio_base64, pending_actions, audit_entries = await run_clara_agent(
             prompt=payload.prompt,
             history=payload.history or None,
             chat_id=payload.chat_id,
@@ -65,6 +65,8 @@ async def chat_with_clara(payload: ChatRequest):
             content=final_text,
             audio=audio_base64,
             created_at=None,
+            pending_actions=pending_actions,
+            audit_entries=audit_entries,
         )
     except HarmfulContentError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

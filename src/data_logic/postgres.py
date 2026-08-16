@@ -14,6 +14,10 @@ from src.models.base import Base
 from src.models.chat_model import Chat
 from src.models.message_model import Message
 from src.models.user_model import User
+from src.models.supplier_model import Supplier
+from src.models.deal_memory_model import DealMemory
+from src.models.action_queue_model import ActionQueueItem
+from src.models.audit_log_model import AuditLog
 
 load_dotenv()
 

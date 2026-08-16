@@ -32,6 +32,8 @@ class ChatResult(BaseModel):
     content: str
     audio: str | None = None
     created_at: str | None = None
+    pending_actions: list[dict] = []
+    audit_entries: list[dict] = []
 
 
 class ChatCreate(BaseModel):

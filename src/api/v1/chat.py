@@ -19,6 +19,7 @@ async def upload_document_context(
 	file: UploadFile = File(...),
 	user_id: str | None = Form(default=None),
 	chat_id: str | None = Form(default=None),
+	related_document_id: str | None = Form(default=None),
 ):
 	if user_id:
 		get_user_or_404(user_id)
@@ -40,6 +41,7 @@ async def upload_document_context(
 		user_id=user_id,
 		chat_id=chat_id,
 		source_type="image" if extension in {".png", ".jpg", ".jpeg", ".webp"} else "document",
+		related_document_id=related_document_id or None,
 	)
 
 	if chunk_count == 0:
@@ -53,6 +55,7 @@ async def upload_document_context(
 		"char_count": len(extracted_text),
 		"chunk_count": chunk_count,
 		"status": "indexed",
+		"related_document_id": related_document_id or None,
 	}
 
 

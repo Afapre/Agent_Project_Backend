@@ -1,4 +1,5 @@
 from fastapi import APIRouter
+from src.api.v1.actions import router as actions_router
 from src.api.v1.documents import router as documents_router
 from src.api.v1.chat import router as chat_router
 from src.api.v1.user import router as user_router
@@ -11,3 +12,4 @@ general_router.include_router(documents_router,prefix='/documents', tags=["Docum
 general_router.include_router(chat_router, prefix='/chat', tags=["Chat Engine"])
 general_router.include_router(user_router, prefix='/chat', tags=["User Management"])
 general_router.include_router(message_router, prefix='/chat', tags=["Message Management"])
+general_router.include_router(actions_router, prefix='/chat', tags=["Action Queue & Audit"])
