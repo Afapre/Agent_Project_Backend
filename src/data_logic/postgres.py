@@ -18,6 +18,7 @@ from src.models.supplier_model import Supplier
 from src.models.deal_memory_model import DealMemory
 from src.models.action_queue_model import ActionQueueItem
 from src.models.audit_log_model import AuditLog
+from src.models.inventory_model import InventoryHistory
 
 load_dotenv()
 

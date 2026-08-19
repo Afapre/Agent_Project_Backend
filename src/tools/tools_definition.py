@@ -2,6 +2,7 @@ from langchain.tools import tool
 from tavily import TavilyClient
 from src.data_logic.retrieval_scope import query_scope_matches
 from src.tools.procurement_tools import create_procurement_tools
+from src.tools.inventory_tools import create_inventory_tools
 
 
 def get_tools(
@@ -78,5 +79,6 @@ def get_tools(
         chat_id=chat_id,
         audit_callback=audit_callback,
     )
+    inventory_tools = create_inventory_tools()
 
-    return [websearch, retriever_tool, *procurement_tools]
+    return [websearch, retriever_tool, *procurement_tools, *inventory_tools]
