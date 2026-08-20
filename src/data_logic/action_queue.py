@@ -1,7 +1,9 @@
 """Authority tiers and action queue management."""
 
 from __future__ import annotations
-
+import os
+import smtplib
+from email.message import EmailMessage
 import json
 import uuid
 from datetime import datetime, timezone
@@ -177,15 +179,59 @@ def execute_action(action: dict) -> dict:
     return result
 
 
-def _execute_draft_email(payload: dict) -> dict:
-    return {
-        "status": "ready_to_send",
-        "from_email": payload.get("from_email", ""),
-        "message": f"Email drafted to {payload.get('recipients', 'recipients')}",
-        "subject": payload.get("subject", ""),
-        "body_preview": (payload.get("body", "")[:200] + "...") if payload.get("body") else "",
-    }
+# def _execute_draft_email(payload: dict) -> dict:
+#     return {
+#         "status": "ready_to_send",
+#         "from_email": payload.get("from_email", ""),
+#         "message": f"Email drafted to {payload.get('recipients', 'recipients')}",
+#         "subject": payload.get("subject", ""),
+#         "body_preview": (payload.get("body", "")[:200] + "...") if payload.get("body") else "",
+#     }
 
+def _execute_draft_email(payload: dict) -> dict:
+    recipient = payload.get("recipients", "")
+    sender = payload.get("from_email") or os.getenv("SMTP_FROM_EMAIL")
+    subject = payload.get("subject", "")
+    body = payload.get("body", "")
+
+    if not recipient:
+        return {"status": "error", "message": "Missing recipient email address."}
+
+    # Construct the email message
+    msg = EmailMessage()
+    msg.set_content(body)
+    msg["Subject"] = subject
+    msg["From"] = sender
+    msg["To"] = recipient
+
+    try:
+        # Gmail SMTP configurations
+        smtp_host = os.getenv("SMTP_HOST", "smtp.gmail.com")
+        smtp_port = int(os.getenv("SMTP_PORT", "587"))
+        smtp_user = os.getenv("SMTP_USER")
+        smtp_password = os.getenv("SMTP_PASSWORD")
+
+        # Connect to Gmail's SMTP server securely
+        with smtplib.SMTP(smtp_host, smtp_port) as server:
+            server.starttls()  # Upgrade to a secure TLS connection
+            server.login(smtp_user, smtp_password)
+            server.send_message(msg)
+
+        return {
+            "status": "success",
+            "from_email": sender,
+            "message": f"Email successfully sent to {recipient}",
+            "subject": subject,
+            "body_preview": (body[:200] + "...") if len(body) > 200 else body,
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "from_email": sender,
+            "message": f"Failed to send email via Gmail: {str(e)}",
+            "subject": subject,
+            "body_preview": (body[:200] + "...") if len(body) > 200 else body,
+        }
 
 def _execute_send_rfp(payload: dict) -> dict:
     vendors = payload.get("vendors", [])
