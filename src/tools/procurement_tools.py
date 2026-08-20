@@ -1,6 +1,8 @@
 """Procurement agentic tools with human-in-the-loop action queue."""
 
 from __future__ import annotations
+from dotenv import load_dotenv
+import os
 
 import json
 from typing import Any, Callable
@@ -10,6 +12,23 @@ from langchain.tools import tool
 from src.data_logic.action_queue import execute_action, queue_action, should_auto_execute
 from src.data_logic.audit_log import log_event
 from src.data_logic.deal_memory import compile_deal_memory, get_deal_memory, list_suppliers
+load_dotenv()
+
+
+CLARA_FROM_EMAIL = os.getenv("CLARA_FROM_EMAIL")
+_UNKNOWN_EMAIL_TOKENS = {"unknown", "tbd", "n/a", "na", "none", "not provided", "missing"}
+
+
+def _split_csv_values(raw_value: str) -> list[str]:
+    return [value.strip() for value in raw_value.split(",") if value and value.strip()]
+
+
+def _is_valid_email(value: str) -> bool:
+    normalized = value.strip().lower()
+    if not normalized or normalized in _UNKNOWN_EMAIL_TOKENS or " " in normalized:
+        return False
+    local_part, at, domain_part = normalized.partition("@")
+    return bool(at and local_part and "." in domain_part and not domain_part.startswith(".") and not domain_part.endswith("."))
 
 
 def _log_tool_call(
@@ -146,12 +165,31 @@ def create_procurement_tools(
             source_documents: Comma-separated list of source document filenames
         """
         docs = [d.strip() for d in source_documents.split(",") if d.strip()]
-        payload = {"recipients": recipients, "subject": subject, "body": body}
+        recipient_values = _split_csv_values(recipients)
+        invalid_recipients = [value for value in recipient_values if not _is_valid_email(value)]
+
+        if not recipient_values or invalid_recipients:
+            return json.dumps({
+                "status": "recipient_email_required",
+                "message": (
+                    "Please provide the recipient email address(es) before I queue this email. "
+                    "I can only proceed once all recipients are valid email addresses."
+                ),
+                "invalid_recipients": invalid_recipients,
+            })
+
+        payload = {
+            "from_email": CLARA_FROM_EMAIL,
+            "recipients": ", ".join(recipient_values),
+            "subject": subject,
+            "body": body,
+        }
         return _queue_or_execute("draft_email", payload, reasoning, docs, user_id, chat_id)
 
     @tool
     def send_rfp_tool(
         vendors: str,
+        vendor_emails: str,
         rfp_title: str,
         requirements: str,
         deadline: str,
@@ -163,6 +201,7 @@ def create_procurement_tools(
 
         Args:
             vendors: Comma-separated vendor names
+            vendor_emails: Comma-separated recipient email addresses aligned to vendors
             rfp_title: Title of the sourcing event
             requirements: Key requirements summary
             deadline: Response deadline
@@ -171,9 +210,32 @@ def create_procurement_tools(
             source_documents: Comma-separated source document filenames
         """
         vendor_list = [v.strip() for v in vendors.split(",") if v.strip()]
+        recipient_emails = _split_csv_values(vendor_emails)
+        invalid_recipients = [value for value in recipient_emails if not _is_valid_email(value)]
+
+        if not recipient_emails or invalid_recipients:
+            return json.dumps({
+                "status": "recipient_email_required",
+                "message": (
+                    "Please provide the vendor recipient email address(es) before I queue this RFP. "
+                    "I can only proceed once all recipients are valid email addresses."
+                ),
+                "invalid_recipients": invalid_recipients,
+            })
+
+        if vendor_list and len(vendor_list) != len(recipient_emails):
+            return json.dumps({
+                "status": "recipient_email_mapping_required",
+                "message": (
+                    "Please provide one vendor email per vendor in the same order so I can queue the RFP correctly."
+                ),
+            })
+
         docs = [d.strip() for d in source_documents.split(",") if d.strip()]
         payload = {
+            "from_email": CLARA_FROM_EMAIL,
             "vendors": vendor_list,
+            "vendor_emails": recipient_emails,
             "rfp_title": rfp_title,
             "requirements": requirements,
             "deadline": deadline,

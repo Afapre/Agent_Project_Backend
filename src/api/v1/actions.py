@@ -5,6 +5,7 @@ from src.data_logic.action_queue import (
     approve_action,
     execute_action,
     get_action,
+    list_all_actions,
     list_pending_actions,
     reject_action,
 )
@@ -30,6 +31,14 @@ async def get_pending_actions(chat_id: str, user_id: str):
 async def get_user_pending_actions(user_id: str):
     get_user_or_404(user_id)
     actions = list_pending_actions(user_id)
+    return [ActionResponse(**action) for action in actions]
+
+
+@router.get("/users/{user_id}/actions", response_model=list[ActionResponse])
+async def get_user_actions(user_id: str, status: str | None = None, limit: int = 200):
+    """Full action history for a user, across all statuses (pending, approved, rejected, executed, edited)."""
+    get_user_or_404(user_id)
+    actions = list_all_actions(user_id, status=status, limit=limit)
     return [ActionResponse(**action) for action in actions]
 
 

@@ -106,6 +106,16 @@ def list_pending_actions(user_id: str, chat_id: str | None = None) -> list[dict]
         return [_serialize_action(item) for item in items]
 
 
+def list_all_actions(user_id: str, status: str | None = None, limit: int = 200) -> list[dict]:
+    """Return the full action history (any status) for a user, most recent first."""
+    with SessionLocal() as session:
+        query = session.query(ActionQueueItem).filter(ActionQueueItem.user_id == uuid.UUID(user_id))
+        if status:
+            query = query.filter(ActionQueueItem.status == status)
+        items = query.order_by(ActionQueueItem.created_at.desc()).limit(limit).all()
+        return [_serialize_action(item) for item in items]
+
+
 def get_action(action_id: str) -> dict | None:
     with SessionLocal() as session:
         item = session.get(ActionQueueItem, uuid.UUID(action_id))
@@ -170,6 +180,7 @@ def execute_action(action: dict) -> dict:
 def _execute_draft_email(payload: dict) -> dict:
     return {
         "status": "ready_to_send",
+        "from_email": payload.get("from_email", ""),
         "message": f"Email drafted to {payload.get('recipients', 'recipients')}",
         "subject": payload.get("subject", ""),
         "body_preview": (payload.get("body", "")[:200] + "...") if payload.get("body") else "",
@@ -180,6 +191,7 @@ def _execute_send_rfp(payload: dict) -> dict:
     vendors = payload.get("vendors", [])
     return {
         "status": "sent",
+        "from_email": payload.get("from_email", ""),
         "message": f"RFP invitations sent to {len(vendors)} vendor(s): {', '.join(vendors)}",
     }
 
