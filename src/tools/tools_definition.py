@@ -3,6 +3,8 @@ from tavily import TavilyClient
 from src.data_logic.retrieval_scope import query_scope_matches
 from src.tools.procurement_tools import create_procurement_tools
 from src.tools.inventory_tools import create_inventory_tools
+from src.tools.negotiation_tools import create_prompt_driven_negotiation_tools
+from src.tools.email_check_tool import create_email_check_tool
 
 
 def get_tools(
@@ -80,5 +82,7 @@ def get_tools(
         audit_callback=audit_callback,
     )
     inventory_tools = create_inventory_tools()
+    negotiation_tools=create_prompt_driven_negotiation_tools()
+    email_tools = create_email_check_tool()
 
-    return [websearch, retriever_tool, *procurement_tools, *inventory_tools]
+    return [websearch, retriever_tool, *procurement_tools, *inventory_tools, *negotiation_tools, *email_tools]
