@@ -140,6 +140,18 @@ def approve_action(action_id: str, user_id: str, edit_payload: dict | None = Non
         return _serialize_action(item)
 
 
+def finalize_execution(action_id: str, exec_result: dict) -> dict | None:
+    """Update an approved/edited action's status after execution: 'executed' on success, 'failed' on error."""
+    with SessionLocal() as session:
+        item = session.get(ActionQueueItem, uuid.UUID(action_id))
+        if not item:
+            return None
+        item.status = "failed" if exec_result.get("status") == "error" else "executed"
+        session.commit()
+        session.refresh(item)
+        return _serialize_action(item)
+
+
 def reject_action(action_id: str, user_id: str, reason: str | None = None) -> dict | None:
     with SessionLocal() as session:
         item = session.get(ActionQueueItem, uuid.UUID(action_id))

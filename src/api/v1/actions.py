@@ -4,6 +4,7 @@ from src.api.v1.chat_common import get_user_or_404
 from src.data_logic.action_queue import (
     approve_action,
     execute_action,
+    finalize_execution,
     get_action,
     list_all_actions,
     list_pending_actions,
@@ -50,6 +51,7 @@ async def approve_pending_action(action_id: str, payload: ActionApproveRequest):
         raise HTTPException(status_code=404, detail="Action not found or already resolved")
 
     exec_result = execute_action(action)
+    action = finalize_execution(action_id, exec_result) or action
     log_event(
         event_type="human_decision",
         user_id=payload.user_id,
