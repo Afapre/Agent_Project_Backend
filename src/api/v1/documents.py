@@ -1,41 +1,18 @@
-from fastapi import APIRouter, HTTPException, UploadFile, File
+from fastapi import APIRouter, HTTPException, UploadFile, File, Form
 from src.data_logic.doc_processor import PDFProcessor
 from src.schema.documents_models import FolderDirectoryRequest
 from src.schema.documents_models import FileRequest
+from src.api.v1.chat_common import extract_document_text
 import os
 from typing import List
 import shutil
+import uuid
 
 #Instantiating router & document processor
 router=APIRouter()
 processor=PDFProcessor()
 
 #Chat endpoint
-# @router.post(path='/import')
-# async def documents_upload(payload:FolderDirectoryRequest):
-#     """uploads documents to chroma database"""
-#     try:
-#         process_status=processor.process_pdf_to_db(payload.folder_directory)
-#         if process_status==False:
-#             raise HTTPException(status_code=400,detail="Documents could not be processed")
-
-    
-#     except Exception as e:
-#         raise HTTPException(status_code=500,detail= f"Error:{e}")
-
-
-# @router.post(path='/upload')
-# async def single_document_upload(payload:FileRequest):
-#     """uploads a single document to chroma database"""
-#     try:
-#         process_status=processor.process_pdf_to_db(payload.file_path)
-#         if process_status==False:
-#             raise HTTPException(status_code=400,detail="Documents could not be processed")
-
-    
-#     except Exception as e:
-#         raise HTTPException(status_code=500,detail= f"Error:{e}")
-
 @router.post(path='/import')
 async def documents_upload(payload: FolderDirectoryRequest):
     """Uploads documents from a folder directory to the chroma database"""
@@ -74,6 +51,70 @@ async def upload_multiple_documents(files: List[UploadFile] = File(...)):
                 os.remove(temp_path)
                 
     return results # Postman will now see exactly which files failed and why
+
+
+@router.post(path='/upload-knowledge')
+async def upload_knowledge_files(
+    files: List[UploadFile] = File(...),
+    user_id: str = Form(...),
+    related_document_id: str | None = Form(default=None),
+):
+    if not files:
+        raise HTTPException(status_code=400, detail="No files were uploaded")
+
+    results = {"success": [], "errors": []}
+
+    for file in files:
+        try:
+            extracted_text = await extract_document_text(file)
+            if not extracted_text.strip():
+                raise HTTPException(status_code=422, detail="No readable text could be extracted from the uploaded file")
+
+            processor = PDFProcessor()
+            document_id = str(uuid.uuid4())
+            chunk_count = processor.index_document_text(
+                extracted_text,
+                document_id=document_id,
+                filename=file.filename or "uploaded-file",
+                user_id=user_id,
+                chat_id=None,
+                source_type="knowledge",
+                related_document_id=related_document_id or None,
+            )
+
+            if chunk_count == 0:
+                raise HTTPException(status_code=422, detail="The uploaded file did not produce any retrievable content")
+
+            results["success"].append({
+                "id": document_id,
+                "filename": file.filename or "uploaded-file",
+                "chunk_count": chunk_count,
+                "related_document_id": related_document_id or None,
+            })
+        except Exception as e:
+            results["errors"].append({"file": file.filename, "error": str(e)})
+
+    return results
+
+
+@router.get(path='/knowledge')
+async def list_knowledge_documents(user_id: str):
+    if not user_id:
+        raise HTTPException(status_code=400, detail="User id is required")
+
+    return processor.list_user_knowledge_documents(user_id=user_id)
+
+
+@router.delete(path='/knowledge/{document_id}')
+async def delete_knowledge_document(document_id: str, user_id: str):
+    if not user_id:
+        raise HTTPException(status_code=400, detail="User id is required")
+
+    deleted = processor.delete_user_knowledge_document(user_id=user_id, document_id=document_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Knowledge document not found")
+
+    return {"message": "Knowledge document removed", "document_id": document_id}
 
 
 # @router.post(path='/upload')

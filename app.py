@@ -1,12 +1,23 @@
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+
+def _configure_langsmith_tracing() -> None:
+    tracing_enabled = os.getenv("ENABLE_LANGSMITH_TRACING", "false").strip().lower()
+    if tracing_enabled not in {"1", "true", "yes", "on"}:
+        os.environ["LANGSMITH_TRACING"] = "false"
+        os.environ["LANGCHAIN_TRACING_V2"] = "false"
+
+
+_configure_langsmith_tracing()
 
 from fastapi import FastAPI
 import uvicorn
 from src.api.router import general_router
 from fastapi.middleware.cors import CORSMiddleware
-from dotenv import load_dotenv
-import os
 from fastapi.staticfiles import StaticFiles
-load_dotenv()
 
 
 #Instantiating fastapi class

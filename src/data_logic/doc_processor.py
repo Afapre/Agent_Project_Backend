@@ -1,16 +1,19 @@
 import gc
 import os
 import uuid
+from typing import Any
 import chromadb
 import fitz
 from dotenv import load_dotenv, find_dotenv
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from sentence_transformers import SentenceTransformer
 from src.data_logic.embedding import MyEmbeddingFunction
+from src.data_logic.retrieval_scope import query_scope_matches
 from PIL import Image
 import io
 import boto3
 from fastapi.staticfiles import StaticFiles
+from chromadb.errors import ChromaError
 
 
 
@@ -18,13 +21,22 @@ load_dotenv(find_dotenv())
 
 ENV = os.getenv("ENV", "development")
 BUCKET_NAME = os.getenv("AWS_BUCKET_NAME")
+API_KEY=os.getenv("CHROMA_API_KEY")
+TENANT=os.getenv("CHROMA_TENANT")
+DATABASE=os.getenv("CHROMA_DATABASE")
 
+try:
+    client = chromadb.CloudClient(
+        api_key=API_KEY,
+        tenant=TENANT,
+        database=DATABASE,
+    )
+    client.heartbeat()
+    print("Successful connection to Chroma Cloud.")
 
-client = chromadb.CloudClient(
-    api_key=os.getenv("CHROMA_API_KEY"),
-    tenant=os.getenv("CHROMA_TENANT"),
-    database=os.getenv("CHROMA_DATABASE"),
-)
+except Exception as e:
+    print(f"Warning: Could not connect to Chroma Cloud. Error: {e}")
+
 
 
 class PDFProcessor:
@@ -166,6 +178,244 @@ class PDFProcessor:
             )
         return self.model
 
+    def _split_text(self, text: str) -> list[str]:
+        splitter = RecursiveCharacterTextSplitter(
+            chunk_size=400,
+            chunk_overlap=40,
+            separators=["\n\n", "\n", " ", ""],
+        )
+        return [chunk.strip() for chunk in splitter.split_text(text) if chunk and chunk.strip()]
+
+    def get_document_filename(self, document_id: str) -> str | None:
+        """Resolves the filename for a previously indexed document, without a full re-ingestion."""
+        self._ensure_loaded()
+
+        if not document_id:
+            return None
+
+        results = self.collection.get(where={"document_id": document_id}, include=["metadatas"], limit=1)
+        metadatas = results.get("metadatas", []) or []
+        if not metadatas:
+            return None
+        return str((metadatas[0] or {}).get("filename") or "") or None
+
+    def index_document_text(
+        self,
+        text: str,
+        *,
+        document_id: str,
+        filename: str,
+        user_id: str | None = None,
+        chat_id: str | None = None,
+        source_type: str = "document",
+        related_document_id: str | None = None,
+        version_label: str | None = None,
+    ) -> int:
+        self._ensure_loaded()
+
+        chunks = self._split_text(text)
+        if not chunks:
+            return 0
+
+        # Amendments are indexed as new chunks linked to the original document_id, so the
+        # original never needs to be deleted or re-ingested.
+        related_filename = self.get_document_filename(related_document_id) if related_document_id else None
+
+        ids = [str(uuid.uuid4()) for _ in chunks]
+        metadatas: list[dict[str, Any]] = []
+
+        for index, _ in enumerate(chunks):
+            metadata: dict[str, Any] = {
+                "document_id": document_id,
+                "filename": filename,
+                "source_type": source_type,
+                "chunk_index": index,
+                "chunk_count": len(chunks),
+            }
+            if user_id:
+                metadata["user_id"] = user_id
+            if chat_id:
+                metadata["chat_id"] = chat_id
+            if related_document_id:
+                metadata["related_document_id"] = related_document_id
+                metadata["is_amendment"] = True
+                if related_filename:
+                    metadata["related_document_filename"] = related_filename
+            if version_label:
+                metadata["version_label"] = version_label
+            metadatas.append(metadata)
+
+        self.collection.add(documents=chunks, ids=ids, metadatas=metadatas)
+        return len(chunks)
+
+    def retrieve_document_context(
+        self,
+        query: str,
+        *,
+        user_id: str | None = None,
+        chat_id: str | None = None,
+        document_ids: list[str] | None = None,
+        n_results: int = 4,
+    ) -> str:
+        self._ensure_loaded()
+
+        matches = query_scope_matches(
+            self.collection,
+            query,
+            user_id=user_id,
+            chat_id=chat_id,
+            document_ids=document_ids,
+            n_results=n_results,
+            include_user_knowledge=True,
+        )
+
+        if not matches:
+            return ""
+
+        formatted_matches: list[str] = []
+        seen: set[tuple[str, str]] = set()
+
+        for document, metadata in matches:
+            filename = str(metadata.get("filename") or "Uploaded file")
+            fingerprint = (filename, str(document))
+            if fingerprint in seen:
+                continue
+            seen.add(fingerprint)
+            header = f"Source: {filename}"
+            if metadata.get("related_document_filename"):
+                header += f" (Amendment to: {metadata['related_document_filename']})"
+            formatted_matches.append(f"{header}\n{document}")
+
+        return "\n\n---\n\n".join(formatted_matches)
+
+    def list_chat_documents(
+        self,
+        *,
+        chat_id: str,
+        user_id: str | None = None,
+    ) -> list[dict[str, Any]]:
+        self._ensure_loaded()
+
+        filters: list[dict[str, Any]] = [{"chat_id": chat_id}]
+        if user_id:
+            filters.append({"user_id": user_id})
+
+        where: dict[str, Any]
+        if len(filters) == 1:
+            where = filters[0]
+        else:
+            where = {"$and": filters}
+
+        results = self.collection.get(where=where, include=["metadatas"])
+        metadatas = results.get("metadatas", []) or []
+
+        documents_by_id: dict[str, dict[str, Any]] = {}
+        for metadata in metadatas:
+            metadata = metadata or {}
+            document_id = metadata.get("document_id")
+            if not document_id or document_id in documents_by_id:
+                continue
+
+            documents_by_id[document_id] = {
+                "id": str(document_id),
+                "filename": str(metadata.get("filename") or "Uploaded file"),
+                "user_id": str(metadata.get("user_id") or "") or None,
+                "chat_id": str(metadata.get("chat_id") or "") or None,
+                "source_type": str(metadata.get("source_type") or "document"),
+                "chunk_count": int(metadata.get("chunk_count") or 0),
+                "status": "indexed",
+                "related_document_id": str(metadata.get("related_document_id") or "") or None,
+                "related_document_filename": str(metadata.get("related_document_filename") or "") or None,
+                "version_label": str(metadata.get("version_label") or "") or None,
+                "is_amendment": bool(metadata.get("is_amendment") or False),
+            }
+
+        return list(documents_by_id.values())
+
+    def list_user_knowledge_documents(
+        self,
+        *,
+        user_id: str,
+    ) -> list[dict[str, Any]]:
+        self._ensure_loaded()
+
+        results = self.collection.get(
+            where={"$and": [{"user_id": user_id}, {"source_type": "knowledge"}]},
+            include=["metadatas"],
+        )
+        metadatas = results.get("metadatas", []) or []
+
+        documents_by_id: dict[str, dict[str, Any]] = {}
+        for metadata in metadatas:
+            metadata = metadata or {}
+            document_id = metadata.get("document_id")
+            if not document_id or document_id in documents_by_id:
+                continue
+
+            documents_by_id[document_id] = {
+                "id": str(document_id),
+                "filename": str(metadata.get("filename") or "Uploaded file"),
+                "user_id": str(metadata.get("user_id") or "") or None,
+                "chat_id": None,
+                "source_type": str(metadata.get("source_type") or "knowledge"),
+                "chunk_count": int(metadata.get("chunk_count") or 0),
+                "status": "indexed",
+                "related_document_id": str(metadata.get("related_document_id") or "") or None,
+                "related_document_filename": str(metadata.get("related_document_filename") or "") or None,
+                "version_label": str(metadata.get("version_label") or "") or None,
+                "is_amendment": bool(metadata.get("is_amendment") or False),
+            }
+
+        return list(documents_by_id.values())
+
+    def delete_chat_document(
+        self,
+        *,
+        chat_id: str,
+        document_id: str,
+        user_id: str | None = None,
+    ) -> bool:
+        self._ensure_loaded()
+
+        filters: list[dict[str, Any]] = [
+            {"chat_id": chat_id},
+            {"document_id": document_id},
+        ]
+        if user_id:
+            filters.append({"user_id": user_id})
+
+        where: dict[str, Any]
+        if len(filters) == 1:
+            where = filters[0]
+        else:
+            where = {"$and": filters}
+
+        results = self.collection.get(where=where)
+        ids = results.get("ids", []) or []
+        if not ids:
+            return False
+
+        self.collection.delete(ids=ids)
+        return True
+
+    def delete_user_knowledge_document(
+        self,
+        *,
+        user_id: str,
+        document_id: str,
+    ) -> bool:
+        self._ensure_loaded()
+
+        where = {"$and": [{"user_id": user_id}, {"source_type": "knowledge"}, {"document_id": document_id}]}
+
+        results = self.collection.get(where=where)
+        ids = results.get("ids", []) or []
+        if not ids:
+            return False
+
+        self.collection.delete(ids=ids)
+        return True
+
     # def process_pdf_to_db(self, target_directory):
     #     """Discovers, parses, and injects all PDFs within the target folder into Chroma."""
     #     self._ensure_loaded()
@@ -243,18 +493,12 @@ class PDFProcessor:
             print(f"⚠️ Path is neither a valid directory nor a file: '{target_path}'")
             return False
 
-        splitter = RecursiveCharacterTextSplitter(
-            chunk_size=400,
-            chunk_overlap=40,
-            separators=["\n\n", "\n", " ", ""],
-        )
-
         for file_path in pdf_files:
             file_name = os.path.basename(file_path)
             try:
                 text = self._extract_text(file_path)
                 images = self._extract_image(file_path)
-                chunks = splitter.split_text(text)
+                chunks = self._split_text(text)
 
                 ids = [str(uuid.uuid4()) for _ in chunks]
                 img_ids = [str(uuid.uuid4()) for _ in images]

@@ -10,6 +10,7 @@ from src.models.base import Base, UUIDPrimaryKey
 
 if TYPE_CHECKING:
     from src.models.chat_model import Chat
+    from src.models.supplier_model import Supplier
 
 
 class User(UUIDPrimaryKey, Base):
@@ -23,3 +24,6 @@ class User(UUIDPrimaryKey, Base):
     password: Mapped[str] = mapped_column(String(255), nullable=False)
 
     chats: Mapped[List["Chat"]] = relationship("Chat", back_populates="user", cascade="all, delete-orphan")
+    suppliers: Mapped[List["Supplier"]] = relationship(
+        "Supplier", back_populates="user", cascade="all, delete-orphan"
+    )
