@@ -15,6 +15,11 @@ python-dotenv
 pyngrok
 setuptools
 fastapi
+black
+pandas
+ruff
+scikit-learn
+sqlalchemy
 openai
 chromadb
 uvicorn

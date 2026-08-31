@@ -6,6 +6,7 @@ UVICORN ?= uvicorn
 GUNICORN ?= gunicorn
 REQS ?= requirements.txt
 ENV_FILE ?= .env
+PORT ?= 8000
 
 .PHONY: help install run dev prod lint clean env-check
 
@@ -14,9 +15,9 @@ help:
 	@echo "Targets:"
 	@echo "  install     Install Python dependencies from $(REQS)"
 	@echo "  env-check   Verify required environment file exists"
-	@echo "  run         Start the FastAPI app with uvicorn"
-	@echo "  dev         Start the FastAPI app in reload mode"
-	@echo "  lint        Check formatting and linting if tools are installed"
+	@echo "  run         Start the FastAPI app on port $(PORT)"
+	@echo "  dev         Start the FastAPI app in reload mode on port $(PORT)"
+	@echo "  lint        Check formatting with Black and lint with Ruff"
 	@echo "  clean       Remove Python cache files"
 
 install:
@@ -30,15 +31,14 @@ run: env-check
 	$(PYTHON) app.py
 
 dev: env-check
-	$(UVICORN) app:app --host 0.0.0.0 --port 1234 --reload
+	$(PYTHON) -m $(UVICORN) app:app --host 0.0.0.0 --port $(PORT) --reload
 
 prod: env-check
 	$(GUNICORN) -w 1 -k uvicorn.workers.UvicornWorker app:app --bind 0.0.0.0:$(PORT)
 
 lint:
-	@command -v black >/dev/null 2>&1 && black . || echo "black is not installed"
-	@command -v ruff >/dev/null 2>&1 && ruff check . || echo "ruff is not installed"
+	$(PYTHON) -m black --check .
+	$(PYTHON) -m ruff check .
 
 clean:
-	@find . -type f -name '__pycache__' -prune -o -name '*.pyc' -print -delete
-	@find . -type d -name '__pycache__' -prune -exec rm -rf {} +
+	$(PYTHON) -c "from pathlib import Path; import shutil; [shutil.rmtree(path) for path in Path('.').rglob('__pycache__')]; [path.unlink() for path in Path('.').rglob('*.pyc')]"
